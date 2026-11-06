@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MELLOW｜韓系簡約服飾</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f8f7f3;color:#252525;font-family:Arial,"Noto Sans TC",sans-serif}
+header{padding:35px 7%;border-bottom:1px solid #e8e5df}
+.logo{font-size:30px;font-weight:800;letter-spacing:5px}
+.subtitle{font-size:12px;letter-spacing:3px;color:#888;margin-top:8px}
+.hero{padding:55px 7% 35px}
+.hero h1{font-size:34px;letter-spacing:3px;margin:0 0 12px}
+.hero p{color:#888;font-size:14px}
+.toolbar{padding:15px 7%;display:flex;gap:12px;flex-wrap:wrap}
+input,select{padding:12px 15px;border:1px solid #ddd;background:#fff;font-size:14px}
+input{flex:1;min-width:200px}
+select{min-width:150px}
+.info{padding:10px 7%;color:#888;font-size:13px}
+.products{padding:20px 7% 60px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:25px 16px}
+.card{background:#fff}
+.card img{width:100%;aspect-ratio:3/4;object-fit:cover;background:#eee;display:block}
+.details{padding:14px}
+.category{font-size:11px;color:#999;letter-spacing:1px}
+.name{font-size:14px;font-weight:600;margin:8px 0}
+.brand{font-size:12px;color:#888}
+.price{font-size:16px;font-weight:700;margin-top:12px}
+.stock{font-size:11px;color:#999;margin-top:6px}
+.status{text-align:center;padding:35px;color:#888;grid-column:1/-1}
+footer{text-align:center;padding:35px;color:#999;border-top:1px solid #e8e5df;font-size:12px}
+@media(max-width:900px){.products{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.products{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 10px}.hero h1{font-size:25px}header{padding:25px 5%}.hero,.toolbar,.info,.products{padding-left:5%;padding-right:5%}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">MELLOW</div>
+  <div class="subtitle">SIMPLE STYLE · DAILY WEAR</div>
+</header>
+
+<section class="hero">
+  <h1>Find Your Everyday Style.</h1>
+  <p>精選日常服飾，打造簡約而有質感的生活風格。</p>
+</section>
+
+<div class="toolbar">
+  <input id="search" placeholder="搜尋商品名稱..." />
+  <select id="category"><option value="">全部分類</option></select>
+  <select id="sort">
+    <option value="">預設排序</option>
+    <option value="low">價格由低到高</option>
+    <option value="high">價格由高到低</option>
+  </select>
+</div>
+
+<div class="info" id="count">正在載入商品...</div>
+<main class="products" id="products">
+  <div class="status">商品載入中...</div>
+</main>
+
+<footer>MELLOW © 2026 · SIMPLE IS THE BEST</footer>
+
+<script>
+const API = "https://clothing-store-api-uznd.onrender.com";
+let allProducts = [];
+
+async function loadData(){
+  const area = document.getElementById("products");
+  try {
+    const [productResponse, categoryResponse] = await Promise.all([
+      fetch(API + "/products?limit=100"),
+      fetch(API + "/categories")
+    ]);
+    if(!productResponse.ok || !categoryResponse.ok) throw new Error("API 回應失敗");
+
+    const productData = await productResponse.json();
+    const categoryData = await categoryResponse.json();
+
+    allProducts = Array.isArray(productData) ? productData :
+      (productData.products || productData.items || []);
+
+    const categories = Array.isArray(categoryData) ? categoryData :
+      (categoryData.categories || []);
+
+    const select = document.getElementById("category");
+    categories.forEach(c => {
+      const option = document.createElement("option");
+      option.value = c.category_id;
+      option.textContent = c.category_name || c.name;
+      select.appendChild(option);
+    });
+
+    renderProducts();
+  } catch(error) {
+    area.innerHTML = '<div class="status">商品載入失敗，請稍後重新整理。<br>可能是 API 尚未開放跨網域存取（CORS）。</div>';
+    document.getElementById("count").textContent = "目前無法取得商品資料";
+    console.error(error);
+  }
+}
+
+function renderProducts(){
+  const keyword = document.getElementById("search").value.trim().toLowerCase();
+  const category = document.getElementById("category").value;
+  const sort = document.getElementById("sort").value;
+
+  let list = allProducts.filter(p => {
+    const name = (p.product_name || p.name || "").toLowerCase();
+    const brand = (p.brand_name || p.brand || "").toLowerCase();
+    const categoryName = String(p.category_name || p.category || "").toLowerCase();
+    const matchKeyword = name.includes(keyword) || brand.includes(keyword);
+    const matchCategory = !category || String(p.category_id) === category ||
+      categoryName === (document.getElementById("category").selectedOptions[0]?.textContent || "").toLowerCase();
+    return matchKeyword && matchCategory;
+  });
+
+  if(sort === "low") list.sort((a,b) => Number(a.price)-Number(b.price));
+  if(sort === "high") list.sort((a,b) => Number(b.price)-Number(a.price));
+
+  document.getElementById("count").textContent = `共找到 ${list.length} 件商品`;
+  const area = document.getElementById("products");
+  area.innerHTML = "";
+
+  if(!list.length){
+    area.innerHTML = '<div class="status">沒有找到符合條件的商品</div>';
+    return;
+  }
+
+  list.forEach(p => {
+    const card = document.createElement("article");
+    card.className = "card";
+
+    const img = document.createElement("img");
+    img.src = p.image_url || "";
+    img.alt = p.product_name || "服飾商品";
+    img.loading = "lazy";
+    img.onerror = () => { img.style.visibility = "hidden"; };
+
+    const details = document.createElement("div");
+    details.className = "details";
+
+    const categoryText = document.createElement("div");
+    categoryText.className = "category";
+    categoryText.textContent = p.category_name || p.category || "COLLECTION";
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = p.product_name || p.name || "商品";
+
+    const brand = document.createElement("div");
+    brand.className = "brand";
+    brand.textContent = p.brand_name || p.brand || "";
+
+    const price = document.createElement("div");
+    price.className = "price";
+    price.textContent = "NT$ " + Number(p.price || 0).toLocaleString("zh-TW");
+
+    const stock = document.createElement("div");
+    stock.className = "stock";
+    stock.textContent = "庫存：" + (p.stock ?? 0);
+
+    details.append(categoryText,name,brand,price,stock);
+    card.append(img,details);
+    area.appendChild(card);
+  });
+}
+
+document.getElementById("search").addEventListener("input",renderProducts);
+document.getElementById("category").addEventListener("change",renderProducts);
+document.getElementById("sort").addEventListener("change",renderProducts);
+
+loadData();
+</script>
+</body>
+</html>
